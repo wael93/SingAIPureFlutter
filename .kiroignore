@@ -1,0 +1,53 @@
+# Build outputs
+build/
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Generated files
+*.g.dart
+*.freezed.dart
+*.mocks.dart
+*.config.dart
+
+# Assets (large files)
+assets/models/*.tflite
+assets/models/*.onnx
+assets/signs/*.mp4
+assets/signs/*.webm
+assets/videos/
+
+# Dependencies
+node_modules/
+ios/Pods/
+android/.gradle/
+
+# Logs
+*.log
+logs/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test coverage
+coverage/
+
+# Documentation (include only when needed)
+# Uncomment if you want to exclude docs
+# docs/
+
+# Large data files
+*.db
+*.sqlite
+*.realm

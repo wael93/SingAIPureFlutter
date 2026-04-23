@@ -2,437 +2,300 @@
 
 ## Overview
 
-This document outlines the architecture and design for a Flutter-based sign language translation MVP for NGOs. The system translates voice and text input to sign language output using local AI models, with offline-first design as a core principle.
+This document describes the architecture and design for a Flutter-based sign language translation MVP for NGOs. The system translates voice and text input to sign language output using local AI models, with full offline functionality. The MVP focuses on core translation capabilities with local model storage, caching, and avatar/video playback.
 
-**Key Design Principles:**
-- **Local-First**: All models and processing happen on-device
-- **Offline-First**: Core functionality works without internet connectivity
-- **Performance-Driven**: <3s for cached content, <8s for new content
-- **Privacy-First**: No data transmission without explicit consent
-- **Modular**: Clean separation of concerns for maintainability
+### Key Design Principles
 
-**Architecture Pattern**: Clean Architecture with layered dependencies (Domain → Application → Infrastructure → UI)
+- **Local-First**: All models and assets are stored locally for offline use
+- **Modular Architecture**: Clear separation of concerns across 8 modules
+- **Performance Targets**: <3s for cached content, <8s for new content
+- **Extensible**: Architecture supports future cloud integration
+- **Privacy-First**: No external data transmission without explicit consent
 
 ## Architecture
 
+### High-Level Architecture Diagram
+
 ```mermaid
 graph TB
-    subgraph "UI Layer"
+    subgraph "Presentation Layer"
         A[Voice Recording UI]
         B[Text Input UI]
-        C[Avatar Playback UI]
+        C[Avatar Player UI]
         D[Settings UI]
         E[Export UI]
     end
     
     subgraph "Application Layer"
-        F[VoiceRecordingService]
-        G[STTService]
-        H[TextNormalizationService]
-        I[SignMappingService]
-        J[AvatarService]
-        K[ExportService]
-        L[CacheService]
-        M[AssetManagerService]
+        F[Voice Recording Module]
+        G[STT Module]
+        H[Text Normalization Module]
+        I[Sign Mapping Module]
+        J[Avatar/Video Module]
+        K[Asset Manager Module]
+        L[Cache Manager Module]
+        M[Export/Share Module]
     end
     
     subgraph "Domain Layer"
-        N[Models]
-        O[Repositories]
-        P[Use Cases]
+        N[Translation Repository]
+        O[Asset Repository]
+        P[Cache Repository]
     end
     
-    subgraph "Infrastructure Layer"
-        Q[Local STT Implementation]
-        R[Local RAG Implementation]
-        S[Sign Mapping Implementation]
-        T[File System Storage]
-        U[SQLite Database]
-        V[Model Files]
+    subgraph "Data Layer"
+        Q[Local Models Storage]
+        R[Local Cache Storage]
+        S[Asset Files]
     end
     
     A --> F
-    B --> G
-    C --> J
-    D --> M
-    E --> K
-    
+    B --> H
     F --> G
     G --> H
     H --> I
     I --> J
-    J --> K
-    
-    K --> L
-    L --> T
-    L --> U
-    
-    M --> T
-    M --> U
-    M --> V
-    
-    Q --> R
-    R --> S
-    S --> V
-    
-    T --> N
-    U --> N
-    V --> N
-    
-    style A fill:#e1f5ff
-    style B fill:#e1f5ff
-    style C fill:#e1f5ff
-    style D fill:#e1f5ff
-    style E fill:#e1f5ff
-    style F fill:#fff3e0
-    style G fill:#fff3e0
-    style H fill:#fff3e0
-    style I fill:#fff3e0
-    style J fill:#fff3e0
-    style K fill:#fff3e0
-    style L fill:#fff3e0
-    style M fill:#fff3e0
-    style N fill:#e8f5e9
-    style O fill:#e8f5e9
-    style P fill:#e8f5e9
-    style Q fill:#fce4ec
-    style R fill:#fce4ec
-    style S fill:#fce4ec
-    style T fill:#fce4ec
-    style U fill:#fce4ec
-    style V fill:#fce4ec
+    J --> C
+    K --> Q
+    L --> R
+    M --> R
+    N --> P
+    O --> K
+    P --> L
 ```
 
-### Component Interaction Flow
+### Layered Architecture
 
-```mermaid
-sequenceDiagram
-    participant User
-    participant UI
-    participant VoiceService
-    participant STTService
-    participant Normalizer
-    participant SignMapper
-    participant AvatarService
-    participant Cache
-    participant FileSystem
-    
-    User->>UI: Record voice or enter text
-    UI->>VoiceService: Start recording
-    VoiceService->>FileSystem: Save audio file
-    FileSystem-->>VoiceService: Audio path
-    VoiceService-->>UI: Recording complete
-    
-    alt Voice input
-        UI->>STTService: Process audio
-        STTService->>FileSystem: Read audio file
-        FileSystem-->>STTService: Audio data
-        STTService->>STTService: Local STT processing
-        STTService-->>UI: Text result
-    else Text input
-        User->>UI: Enter text directly
-    end
-    
-    UI->>Normalizer: Normalize text
-    Normalizer->>Normalizer: Apply RAG-based normalization
-    Normalizer-->>UI: Normalized text
-    
-    UI->>SignMapper: Map to signs
-    SignMapper->>SignMapper: Lookup signs for words
-    SignMapper-->>UI: Sign mappings with confidence
-    
-    UI->>AvatarService: Render signs
-    AvatarService->>FileSystem: Load avatar assets
-    FileSystem-->>AvatarService: Video/image assets
-    AvatarService-->>UI: Avatar playback ready
-    
-    UI->>Cache: Store result
-    Cache->>FileSystem: Save to cache
-    Cache->>Cache: Update cache metadata
+```
+┌─────────────────────────────────────────┐
+│         Presentation Layer              │
+│  (UI Components, Blocs, Widgets)        │
+├─────────────────────────────────────────┤
+│         Application Layer               │
+│  (8 Core Modules with Services)         │
+├─────────────────────────────────────────┤
+│         Domain Layer                    │
+│  (Repositories, Use Cases, Models)      │
+├─────────────────────────────────────────┤
+│         Data Layer                      │
+│  (Local Storage, Models, Assets)        │
+└─────────────────────────────────────────┘
 ```
 
 ## Components and Interfaces
 
 ### 1. Voice Recording Module
 
-**Purpose**: Capture and manage voice recordings
+**Purpose**: Capture and manage voice input
 
-**Key Classes**:
-- `VoiceRecorder`: Main controller for recording lifecycle
-- `AudioRecorder`: Platform-specific audio recording implementation
-- `AudioValidator`: Validates recording duration and quality
+**Key Components**:
+- `VoiceRecordingService`: Manages recording lifecycle
+- `AudioRecorder`: Handles low-level audio capture
+- `VoiceRecordingCubit`: State management for UI
 
 **Interfaces**:
 ```dart
 abstract class VoiceRecordingService {
-  Future<bool> initialize();
   Future<void> startRecording();
-  Future<String?> stopRecording();
+  Future<String> stopRecording();
   Future<void> cancelRecording();
   bool isRecording();
-  double getRecordingDuration();
-  AudioRecordingStatus get status;
+  Duration getRecordingDuration();
 }
 ```
 
 **Dependencies**:
-- `path_provider`: For device storage paths
-- `record`: Audio recording package
-- `permission_handler`: For microphone permissions
+- `permission_handler`: For microphone access
+- `record`: For audio recording
 
-### 2. STT Processing Module (Local)
+### 2. Speech-to-Text (STT) Module
 
 **Purpose**: Convert voice recordings to text using local models
 
-**Key Classes**:
-- `LocalSTTService`: Main STT service implementation
-- `STTModelManager`: Manages STT model files and versions
-- `STTResultValidator`: Validates and highlights low-confidence segments
+**Key Components**:
+- `STTService`: Main interface for STT operations
+- `LocalSTTService`: Implementation using Whisper or similar
+- `STTModelManager`: Manages STT model lifecycle
+- `STTResultValidator`: Validates STT output quality
 
 **Interfaces**:
 ```dart
 abstract class STTService {
-  Future<STTResult> processAudio(String audioPath, String language);
-  Future<List<String>> getSupportedLanguages();
-  double getConfidenceThreshold();
-}
-
-class STTResult {
-  final String text;
-  final double confidence;
-  final List<STTSegment> segments;
-  final bool isLowConfidence;
-}
-
-class STTSegment {
-  final String text;
-  final double confidence;
-  final int startTime;
-  final int endTime;
+  Future<STTResult> transcribe(String audioPath, String language);
+  Future<List<STTResult>> transcribeWithConfidence(String audioPath, String language);
+  bool isModelAvailable(String language);
+  Future<void> downloadModel(String language);
+  List<String> getAvailableLanguages();
 }
 ```
 
 **Dependencies**:
-- `flutter_whisper`: Local Whisper model inference
-- `tflite_flutter`: TensorFlow Lite for model execution
+- `flutter_whisper`: For Whisper-based STT
+- `tflite_flutter`: For TFLite model execution
 
-### 3. Text Normalization Module (Local RAG)
+### 3. Text Normalization Module
 
 **Purpose**: Clean and standardize text for sign language mapping
 
-**Key Classes**:
-- `TextNormalizer`: Main normalization service
+**Key Components**:
+- `TextNormalizationService`: Main interface
 - `RAGNormalizer`: RAG-based normalization implementation
-- `NormalizationCache`: Caches normalization results
+- `NormalizationCache`: Caches normalized text
 
 **Interfaces**:
 ```dart
 abstract class TextNormalizationService {
-  Future<NormalizedText> normalize(String text);
-  Future<void> updateVocabulary(List<String> newWords);
-  List<String> getVocabulary();
-}
-
-class NormalizedText {
-  final String text;
-  final List<NormalizationChange> changes;
-  final bool wasModified;
-}
-
-class NormalizationChange {
-  final String original;
-  final String normalized;
-  final NormalizationType type;
+  Future<String> normalize(String text);
+  Future<NormalizationResult> normalizeWithDetails(String text);
+  Future<void> clearCache();
 }
 ```
 
-**Dependencies**:
-- `sqlite` or `hive`: For local vocabulary storage
-- Custom RAG implementation using local embeddings
+**Normalization Operations**:
+- Remove filler words (um, uh, like)
+- Remove repetitions
+- Convert numbers to digits
+- Standardize punctuation
+- Handle contractions
 
 ### 4. Sign Mapping Module
 
 **Purpose**: Map normalized text to sign language representations
 
-**Key Classes**:
-- `SignMapper`: Main sign mapping service
-- `SignDatabase`: Local database of sign mappings
-- `SignLookupCache`: Caches sign lookups for performance
+**Key Components**:
+- `SignMappingService`: Main interface
+- `SignMapper`: Implementation with dictionary lookup
+- `SignDatabase`: Stores sign language data
+- `SignLookupCache`: Caches sign mappings
 
 **Interfaces**:
 ```dart
 abstract class SignMappingService {
   Future<List<SignMapping>> mapTextToSigns(String text, SignLanguageVariant variant);
-  Future<SignMapping?> getSignForWord(String word, SignLanguageVariant variant);
-  double getCoveragePercentage(SignLanguageVariant variant);
+  Future<SignMapping> getSignForWord(String word, SignLanguageVariant variant);
+  List<SignLanguageVariant> getAvailableVariants();
+  double getCoverageScore(String text, SignLanguageVariant variant);
 }
-
-class SignMapping {
-  final String word;
-  final String? signId;
-  final double confidence;
-  final SignType signType;
-  final List<String> alternatives;
-}
-
-enum SignType { video, image, gesture_description }
 ```
 
-**Dependencies**:
-- `hive` or `sqlite`: For local sign database
-- Custom sign mapping logic
+**Data Models**:
+```dart
+class SignMapping {
+  final String originalWord;
+  final String signRepresentation;
+  final double confidence;
+  final bool isFallback;
+}
+```
 
 ### 5. Avatar/Video Playback Module
 
-**Purpose**: Render sign language sequences via avatar
+**Purpose**: Render sign language through digital avatars
 
-**Key Classes**:
-- `AvatarService`: Main avatar rendering service
-- `AvatarPlayer`: Manages avatar playback
-- `AvatarAssetManager`: Manages avatar assets (videos/images)
+**Key Components**:
+- `AvatarService`: Manages avatar rendering
+- `AvatarPlayer`: Handles playback controls
+- `AvatarAssetManager`: Manages avatar assets
 
 **Interfaces**:
 ```dart
 abstract class AvatarService {
-  Future<AvatarRenderResult> renderSigns(List<SignMapping> signs);
-  Future<void> playAvatar(AvatarRenderResult result);
-  Future<void> pauseAvatar();
-  Future<void> restartAvatar();
+  Future<AvatarRenderResult> renderSignSequence(List<SignMapping> signs);
+  Future<void> playVideo(String videoPath);
+  Future<void> pauseVideo();
+  Future<void> restartVideo();
   Future<void> setPlaybackSpeed(double speed);
 }
 
-class AvatarRenderResult {
-  final List<AvatarSegment> segments;
-  final Duration totalDuration;
-  final bool isComplete;
-}
-
-class AvatarSegment {
-  final String signId;
-  final String assetPath;
-  final Duration duration;
-  final AvatarSegmentType type;
+abstract class AvatarPlayer {
+  void play();
+  void pause();
+  void stop();
+  void setSpeed(double speed);
+  Stream<double> get playbackProgress;
 }
 ```
 
-**Dependencies**:
-- `video_player`: For video playback
-- `flutter_svg`: For SVG assets
-- Custom avatar rendering logic
+### 6. Asset Manager Module
 
-### 6. Asset Manager (Model Downloads/Updates)
+**Purpose**: Download, update, and manage local AI models and assets
 
-**Purpose**: Download, update, and manage local AI models
-
-**Key Classes**:
-- `AssetManager`: Main asset management service
+**Key Components**:
+- `AssetManagerService`: Main interface
 - `ModelDownloader`: Handles model downloads
-- `ModelValidator`: Validates model integrity with checksums
-- `ModelManager`: Manages model versions and selection
+- `ModelManager`: Manages model lifecycle
+- `ModelValidator`: Validates model integrity
 
 **Interfaces**:
 ```dart
 abstract class AssetManagerService {
   Future<List<ModelInfo>> getAvailableModels();
-  Future<ModelDownloadResult> downloadModel(String modelId);
+  Future<void> downloadModel(String modelId);
   Future<void> updateModel(String modelId);
   Future<void> deleteModel(String modelId);
-  Future<bool> verifyModel(String modelId);
-  ModelInfo? getModel(String modelId);
-  Future<double> getDownloadProgress(String modelId);
+  Future<bool> validateModel(String modelId);
+  double getDownloadProgress(String modelId);
 }
-
-class ModelInfo {
-  final String id;
-  final String name;
-  final String description;
-  final double size;
-  final double installedSize;
-  final ModelStatus status;
-  final String checksum;
-  final List<String> supportedLanguages;
-  final DateTime? lastUpdated;
-}
-
-enum ModelStatus { not_installed, downloading, installed, updating, error }
 ```
 
-**Dependencies**:
-- `http`: For downloading models
-- `crypto`: For checksum verification
-- `path_provider`: For storage management
+**Model Storage Strategy**:
+- Models stored in `$modelsDirectory/stt`, `$modelsDirectory/normalization`, `$modelsDirectory/sign_mapping`
+- Each model has checksum file for integrity verification
+- Automatic redownload on corruption detection
 
-### 7. Cache Manager (Local-Only)
+### 7. Cache Manager Module
 
-**Purpose**: Cache processed content for offline use and performance
+**Purpose**: Local caching of processed content for performance
 
-**Key Classes**:
-- `CacheManager`: Main cache management service
-- `CacheEntry`: Represents a cached item
+**Key Components**:
+- `CacheService`: Main interface
+- `CacheManager`: Implementation
 - `CacheEvictionPolicy`: Manages cache size limits
 
 **Interfaces**:
 ```dart
 abstract class CacheService {
-  Future<CacheEntry?> getCacheEntry(String cacheKey);
-  Future<void> saveCacheEntry(CacheEntry entry);
+  Future<void> saveCache(String key, CacheEntry entry);
+  Future<CacheEntry?> getCache(String key);
   Future<void> clearCache();
-  Future<void> clearOldEntries(Duration maxAge);
-  Future<double> getCacheSize();
-  Future<bool> isCacheOverLimit();
-}
-
-class CacheEntry {
-  final String cacheKey;
-  final String inputType;
-  final String inputContent;
-  final String outputType;
-  final String outputContent;
-  final DateTime createdAt;
-  final DateTime? updatedAt;
-  final int accessCount;
+  Future<int> getCacheSize();
+  Future<void> evictOldEntries();
 }
 ```
 
-**Dependencies**:
-- `hive` or `sqlite`: For local caching
-- `path_provider`: For file-based cache
+**Cache Strategy**:
+- Maximum 500MB cache size
+- LRU eviction policy
+- Automatic cleanup when threshold reached
+- Local-only storage (no cloud sync)
 
 ### 8. Export/Share Module
 
 **Purpose**: Export and share sign language translations
 
-**Key Classes**:
-- `ExportService`: Main export service
-- `ExportFormat`: Defines export formats
+**Key Components**:
+- `ExportService`: Handles export operations
 - `ShareManager`: Manages sharing functionality
+- `ExportFormat`: Defines export formats
 
 **Interfaces**:
 ```dart
 abstract class ExportService {
-  Future<ExportResult> exportToVideo(List<SignMapping> signs, String outputPath);
-  Future<ExportResult> exportToImage(List<SignMapping> signs, String outputPath);
-  Future<ExportResult> exportToLink(List<SignMapping> signs);
+  Future<ExportResult> exportToVideo(List<SignMapping> signs);
+  Future<ExportResult> exportToImage(List<SignMapping> signs);
+  Future<ExportResult> exportToLocal(String path);
 }
 
-class ExportResult {
-  final String outputPath;
-  final ExportFormat format;
-  final Duration? expirationTime;
-  final bool isLocal;
+abstract class ShareManager {
+  Future<void> shareViaEmail(String filePath);
+  Future<void> shareViaMessaging(String filePath);
+  Future<void> shareToLocalStorage(String filePath);
 }
-
-enum ExportFormat { video, image, link }
 ```
-
-**Dependencies**:
-- `video_editor` or custom implementation: For video export
-- `share_plus`: For sharing functionality
-- `path_provider`: For file paths
 
 ## Data Models
 
-### Core Domain Models
+### Translation Models
 
 ```dart
 class TranslationRequest {
@@ -440,139 +303,163 @@ class TranslationRequest {
   final InputType inputType;
   final String inputContent;
   final String language;
-  final SignLanguageVariant signVariant;
-  final DateTime createdAt;
-  final TranslationStatus status;
-  final String? cacheKey;
+  final SignLanguageVariant variant;
+  final DateTime timestamp;
 }
 
 class TranslationResult {
   final String id;
-  final String requestId;
-  final String text;
+  final TranslationRequest request;
   final String normalizedText;
   final List<SignMapping> signMappings;
-  final AvatarRenderResult avatarResult;
-  final DateTime createdAt;
-  final Duration processingTime;
+  final String? avatarVideoPath;
+  final TranslationStatus status;
+  final DateTime timestamp;
+  final double processingTimeMs;
 }
 
-class UserSettings {
-  final SignLanguageVariant signVariant;
-  final String sttLanguage;
-  final bool enableAnalytics;
-  final bool enableCache;
-  final int cacheRetentionDays;
-  final AvatarAppearance avatarAppearance;
-  final bool highContrastMode;
-  final bool screenReaderEnabled;
-}
+enum InputType { voice, text }
 
+enum TranslationStatus { pending, processing, completed, failed }
+```
+
+### Model Models
+
+```dart
 class ModelInfo {
   final String id;
-  final String name;
   final ModelType type;
-  final double size;
-  final double installedSize;
+  final String name;
+  final String version;
+  final int sizeBytes;
   final ModelStatus status;
+  final DateTime downloadedAt;
   final String checksum;
-  final List<String> supportedLanguages;
-  final DateTime? lastUpdated;
 }
 
-class UsageStats {
-  final int sttCalls;
-  final int normalizationCalls;
-  final int signMappingCalls;
-  final int avatarRenderCalls;
-  final DateTime lastReset;
-  final DateTime? nextReset;
+enum ModelType { stt, normalization, signMapping }
+
+enum ModelStatus { downloading, available, updating, error }
+```
+
+### Cache Models
+
+```dart
+class CacheEntry {
+  final String key;
+  final String contentType;
+  final String content;
+  final DateTime createdAt;
+  final DateTime expiresAt;
+}
+
+class CacheMetadata {
+  final int totalEntries;
+  final int totalSizeBytes;
+  final DateTime lastAccessed;
 }
 ```
 
-### Data Flow
+## Data Flow
+
+### Voice Translation Flow
 
 ```
-User Input (Voice/Text)
-    ↓
-Voice Recording (if voice)
-    ↓
-Audio File → STT Service → Text
-    ↓
-Text → Text Normalizer → Normalized Text
-    ↓
-Normalized Text → Sign Mapper → Sign Mappings
-    ↓
-Sign Mappings → Avatar Service → Avatar Result
-    ↓
-Avatar Result → Export Service → Exported Content
-    ↓
-All Results → Cache Service → Local Storage
+User Input → Voice Recording → STT → Text Normalization → Sign Mapping → Avatar Rendering → Output
 ```
+
+1. User starts voice recording
+2. Recording is saved to local storage
+3. STT service converts audio to text
+4. Text normalization cleans the text
+5. Sign mapper converts text to sign representations
+6. Avatar service renders the sign sequence
+7. Result is displayed to user
+
+### Text Translation Flow
+
+```
+User Input → Text Normalization → Sign Mapping → Avatar Rendering → Output
+```
+
+1. User enters text
+2. Text normalization cleans the text
+3. Sign mapper converts text to sign representations
+4. Avatar service renders the sign sequence
+5. Result is displayed to user
+
+### Cache Flow
+
+```
+Request → Check Cache → Process if Miss → Save to Cache → Return Result
+```
+
+1. Request arrives
+2. Cache is checked for existing result
+3. If cache miss, processing pipeline runs
+4. Result is saved to cache
+5. Result is returned to user
 
 ## Local Model Storage Strategy
 
 ### Storage Locations
 
 ```
-App Directory/
+app_directory/
 ├── models/
 │   ├── stt/
-│   │   ├── model_v1/
-│   │   │   ├── model.tflite
-│   │   │   ├── config.json
-│   │   │   └── checksum.txt
-│   │   └── model_v2/
+│   │   ├── model_en.tflite
+│   │   ├── model_ar.tflite
+│   │   └── model_es.tflite
 │   ├── normalization/
-│   │   ├── vocabulary.db
-│   │   └── embeddings/
+│   │   └── rag_model.tflite
 │   └── sign_mapping/
-│       ├── signs.db
-│       └── assets/
-│           ├── videos/
-│           └── images/
-├── cache/
-│   ├── entries/
-│   └── metadata.db
-└── assets/
-    ├── avatar/
-    │   ├── videos/
-    │   └── images/
-    └── ui/
+│       ├── sign_database.db
+│       └── sign_embeddings.json
+├── assets/
+│   └── avatar/
+│       ├── sign_videos/
+│       │   ├── sign_a.mp4
+│       │   ├── sign_b.mp4
+│       │   └── ...
+│       └── avatar_config.json
+└── cache/
+    ├── translation_cache.db
+    └── normalization_cache.db
 ```
 
-### Model Download Flow
+### Model Download Process
 
-```mermaid
-graph TB
-    A[User selects model] --> B[Check storage space]
-    B --> C{Space available?}
-    C -->|No| D[Show error with requirements]
-    C -->|Yes| E[Create download task]
-    E --> F[Download model file]
-    F --> G[Verify checksum]
-    G --> H{Checksum valid?}
-    H -->|No| I[Delete corrupted file]
-    H -->|Yes| J[Extract model files]
-    J --> K[Update model registry]
-    K --> L[Notify user of completion]
-```
+1. User selects model to download
+2. Model metadata is fetched from local registry
+3. Model file is downloaded to temporary location
+4. Checksum is verified
+5. Model is moved to permanent location
+6. Model registry is updated
 
-### Model Versioning
+### Model Update Process
 
-- Models use semantic versioning (v1.0.0)
-- Each model has a `config.json` with version info
-- Old models are retained for backward compatibility
-- Users can select which version to use
+1. System checks for available updates
+2. New model is downloaded alongside existing
+3. New model is validated
+4. User is prompted to switch to new model
+5. Old model can be retained for rollback
+
+### Model Validation
+
+- Checksum verification using SHA-256
+- Model loading test
+- Basic functionality test
+- Automatic redownload on failure
 
 ## Offline-First Design Patterns
 
 ### Connectivity Detection
 
 ```dart
-class ConnectivityService {
-  Stream<ConnectionStatus> get statusStream;
-  Future<ConnectionStatus> checkConnection();
+abstract class ConnectivityService {
+  Stream<ConnectionStatus> get connectivityStream;
+  Future<ConnectionStatus> checkConnectivity();
   bool get isOnline;
   bool get isOffline;
 }
@@ -581,349 +468,217 @@ class ConnectivityService {
 ### Offline Operation Modes
 
 1. **Fully Online**: All features available
-2. **Partially Offline**: Some cached features available
-3. **Fully Offline**: Only cached features available
+2. **Partially Offline**: Cached content only, no new downloads
+3. **Fully Offline**: All features work with local data
 
-### Cache-First Strategy
+### Offline User Experience
 
-```dart
-Future<T> getData<T>(String key, Future<T> Function() fetchRemote) async {
-  // 1. Check cache first
-  final cached = await cacheService.getCacheEntry(key);
-  if (cached != null) {
-    return parse<T>(cached.outputContent);
-  }
-  
-  // 2. Fetch remote if online
-  if (connectivityService.isOnline) {
-    final remote = await fetchRemote();
-    await cacheService.saveCacheEntry(
-      CacheEntry(key: key, outputContent: serialize(remote)),
-    );
-    return remote;
-  }
-  
-  // 3. Return error if offline and not cached
-  throw OfflineException('No cached data available');
-}
-```
+- Clear offline indicator in UI
+- Cached content is prioritized
+- New content requests show clear messages
+- Background sync when connectivity restored
 
-### Sync Queue for Offline Changes
+### Local-Only Caching
 
-```dart
-class SyncQueue {
-  final List<SyncOperation> pendingOperations;
-  
-  Future<void> enqueue(SyncOperation operation);
-  Future<void> processQueue();
-  Future<int> getPendingCount();
-}
-```
+- All cache stored locally (Hive, SQLite)
+- No cloud sync in MVP
+- Cache size limited to 500MB
+- Automatic eviction when threshold reached
 
 ## Flutter Project Structure
 
 ```
 lib/
-├── main.dart
+├── main.dart                          # App entry point
 ├── config/
-│   ├── app_config.dart
-│   └── dependencies.dart
+│   ├── app_config.dart                # Configuration constants
+│   └── dependencies.dart              # DI container
 ├── core/
-│   ├── constants/
-│   │   ├── app_constants.dart
-│   │   └── error_messages.dart
-│   ├── errors/
-│   │   ├── exceptions.dart
-│   │   └── failures.dart
-│   ├── network/
-│   │   ├── connectivity_service.dart
-│   │   └── network_info.dart
-│   └── utils/
-│       ├── logger.dart
-│       └── validators.dart
+│   ├── constants/                     # App constants
+│   ├── errors/                        # Error handling
+│   ├── network/                       # Connectivity
+│   └── utils/                         # Utilities
 ├── domain/
-│   ├── models/
-│   │   ├── translation_models.dart
-│   │   ├── user_models.dart
-│   │   └── model_models.dart
-│   ├── repositories/
-│   │   ├── translation_repository.dart
-│   │   ├── asset_repository.dart
-│   │   └── cache_repository.dart
-│   └── use_cases/
-│       ├── translation/
-│       │   ├── translate_voice.dart
-│       │   ├── translate_text.dart
-│       │   └── get_translation_history.dart
-│       ├── asset/
-│       │   ├── download_model.dart
-│       │   ├── update_model.dart
-│       │   └── get_available_models.dart
-│       └── cache/
-│           ├── save_cache.dart
-│           ├── get_cache.dart
-│           └── clear_cache.dart
+│   ├── models/                        # Domain models
+│   ├── repositories/                  # Repository interfaces
+│   └── use_cases/                     # Business logic
 ├── application/
-│   ├── voice_recording/
-│   │   ├── voice_recorder.dart
-│   │   └── audio_recorder.dart
-│   ├── stt/
-│   │   ├── stt_service.dart
-│   │   └── local_stt_service.dart
-│   ├── normalization/
-│   │   ├── text_normalizer.dart
-│   │   └── rag_normalizer.dart
-│   ├── sign_mapping/
-│   │   ├── sign_mapper.dart
-│   │   └── sign_database.dart
-│   ├── avatar/
-│   │   ├── avatar_service.dart
-│   │   └── avatar_player.dart
-│   ├── export/
-│   │   ├── export_service.dart
-│   │   └── share_manager.dart
-│   ├── asset_manager/
-│   │   ├── asset_manager.dart
-│   │   └── model_downloader.dart
-│   └── cache/
-│       ├── cache_manager.dart
-│       └── cache_eviction_policy.dart
-├── presentation/
-│   ├── bloc/
-│   │   ├── translation/
-│   │   │   ├── translation_cubit.dart
-│   │   │   └── translation_state.dart
-│   │   ├── voice_recording/
-│   │   │   ├── voice_recording_cubit.dart
-│   │   │   └── voice_recording_state.dart
-│   │   ├── asset_manager/
-│   │   │   ├── asset_manager_cubit.dart
-│   │   │   └── asset_manager_state.dart
-│   │   └── settings/
-│   │       ├── settings_cubit.dart
-│   │       └── settings_state.dart
-│   ├── pages/
-│   │   ├── home_page.dart
-│   │   ├── translation_result_page.dart
-│   │   ├── settings_page.dart
-│   │   ├── model_manager_page.dart
-│   │   └── usage_page.dart
-│   └── widgets/
-│       ├── voice_recorder_widget.dart
-│       ├── avatar_player_widget.dart
-│       ├── sign_mapping_widget.dart
-│       └── loading_indicator_widget.dart
-└── test/
-    ├── unit/
-    ├── widget/
-    └── integration/
+│   ├── voice_recording/               # Module 1
+│   ├── stt/                           # Module 2
+│   ├── normalization/                 # Module 3
+│   ├── sign_mapping/                  # Module 4
+│   ├── avatar/                        # Module 5
+│   ├── asset_manager/                 # Module 6
+│   ├── cache/                         # Module 7
+│   └── export/                        # Module 8
+└── presentation/
+    ├── bloc/                          # BLoC/Cubit state
+    ├── pages/                         # Screen pages
+    └── widgets/                       # Reusable widgets
 ```
 
 ## Technology Stack
 
 ### Core Framework
-- **Flutter**: 3.24.0+ (stable channel)
-- **Dart**: 3.4.0+
+
+- **Flutter SDK**: Cross-platform UI framework
+- **Dart**: Programming language
 
 ### State Management
-- **bloc**: 8.14.0+ (for UI state management)
-- **freezed**: 2.4.0+ (for immutable state classes)
+
+- **flutter_bloc**: BLoC/Cubit pattern for state management
 
 ### Local Storage
-- **hive**: 2.2.3+ (for small data and caching)
-- **hive_flutter**: 1.1.0+
-- **path_provider**: 2.1.2+ (for file paths)
 
-### Audio and STT
-- **record**: 4.5.0+ (for audio recording)
-- **flutter_whisper**: 2.0.0+ (for local STT)
-- **tflite_flutter**: 0.10.4+ (for TensorFlow Lite models)
+- **hive**: Lightweight key-value database
+- **hive_flutter**: Flutter integration for Hive
+
+### Audio Processing
+
+- **record**: Audio recording functionality
+- **flutter_whisper**: Whisper-based STT
+- **tflite_flutter**: TFLite model execution
 
 ### Networking
-- **http**: 1.2.0+ (for model downloads)
-- **connectivity_plus**: 5.0.2+ (for connectivity detection)
 
-### UI Components
-- **flutter_svg**: 2.0.9+ (for SVG assets)
-- **video_player**: 2.8.0+ (for video playback)
-- **permission_handler**: 11.1.0+ (for permissions)
+- **http**: HTTP client for model downloads
+- **connectivity_plus**: Connectivity detection
+
+### Asset Management
+
+- **flutter_svg**: SVG rendering for avatars
+- **video_player**: Video playback
+
+### Permissions
+
+- **permission_handler**: Permission management
 
 ### Utilities
-- **crypto**: 3.0.3+ (for checksums)
-- **uuid**: 4.3.3+ (for IDs)
-- **logger**: 2.2.0+ (for logging)
 
-### Testing
-- **mockito**: 5.4.4+ (for mocking)
-- **test**: 1.25.0+ (for unit tests)
-- **integration_test**: Flutter SDK (for integration tests)
+- **crypto**: Cryptographic functions (checksums)
+- **uuid**: Unique ID generation
+- **logger**: Logging framework
+- **get_it**: Dependency injection
 
 ## Performance Considerations
 
 ### Performance Targets
 
-| Metric | Target | Measurement |
-|--------|--------|-------------|
-| Initial screen load | <2s | From app launch to first frame |
-| Cached content display | <3s | From request to display |
-| New content processing | <8s | From input to output |
-| Avatar rendering | <5s | From request to playback ready |
-| Model download | <60s per GB | From start to completion |
+| Operation | Target Time | Measurement |
+|-----------|-------------|-------------|
+| Initial load | <2s | App startup to first screen |
+| Cached content | <3s | From cache lookup to display |
+| New content | <8s | Full processing pipeline |
+| Avatar rendering | <5s | Sign sequence to video |
 
 ### Optimization Strategies
 
-1. **Lazy Loading**
-   - Load models only when needed
-   - Load avatar assets on-demand
-   - Use deferred imports for optional features
+1. **Lazy Loading**: Load models only when needed
+2. **Caching**: Cache all processed content
+3. **Background Processing**: Use isolates for heavy operations
+4. **Progress Indicators**: Show progress for long operations
+5. **Memory Management**: Release assets when not in use
 
-2. **Caching Strategy**
-   - Cache all processed content
-   - Implement LRU cache eviction
-   - Pre-cache frequently used signs
+### Isolate Usage
 
-3. **Background Processing**
-   - Use `compute()` for CPU-intensive tasks
-   - Run model downloads in isolates
-   - Process cache eviction in background
+- STT processing in isolate
+- Text normalization in isolate
+- Sign mapping in isolate
+- Avatar rendering in isolate
 
-4. **Memory Management**
-   - Release audio files after processing
-   - Clear video player resources when not in use
-   - Use memory-efficient image formats
+### Memory Optimization
 
-5. **Database Optimization**
-   - Use indexed queries for cache lookups
-   - Batch database operations
-   - Implement connection pooling
-
-### Performance Monitoring
-
-```dart
-class PerformanceMonitor {
-  void startTimer(String operation);
-  void stopTimer(String operation);
-  Duration getDuration(String operation);
-  void recordMetric(String name, double value);
-  Future<Map<String, dynamic>> getMetrics();
-}
-```
+- Release audio files after processing
+- Clear temporary files
+- Limit cache size
+- Use efficient data structures
 
 ## Security Considerations
 
 ### Data Encryption
 
-```dart
-class EncryptionService {
-  Future<String> encrypt(String data, String key);
-  Future<String> decrypt(String encryptedData, String key);
-  Future<String> generateKey();
-  Future<void> secureKeyStorage(String key);
-}
-```
+- All cached data encrypted at rest using device-native encryption
+- Model files encrypted during download
+- Checksums verified for integrity
 
-### Security Best Practices
+### Permission Handling
 
-1. **Data at Rest**
-   - Encrypt all cached data using AES-256
-   - Use device-native encryption (Android Keystore, iOS Keychain)
-   - Encrypt model files during download
+- Microphone permission required for voice recording
+- Storage permission required for model downloads
+- Clear permission request flow with explanations
+- Graceful degradation if permissions denied
 
-2. **Data in Transit**
-   - Use HTTPS for model downloads
-   - Verify SSL certificates
-   - Implement certificate pinning
+### Privacy Features
 
-3. **Permissions**
-   - Request microphone permission only when needed
-   - Handle permission denial gracefully
-   - Provide clear instructions for enabling permissions
+- No external data transmission without consent
+- Local-only processing
+- Anonymous usage analytics (opt-in)
+- Data deletion on request
 
-4. **Access Control**
-   - Implement user authentication for admin features
-   - Use secure storage for sensitive settings
-   - Implement session timeouts
+### Secure Model Storage
 
-5. **Security Auditing**
-   - Log security events
-   - Implement tamper detection
-   - Regular security reviews
-
-### Privacy Compliance
-
-- No data transmission without explicit consent
-- User data deletion within 24 hours of request
-- Anonymous analytics only (with opt-out)
-- No personally identifiable information stored
+- Models stored in app-specific directories
+- No external access to model files
+- Integrity verification on load
+- Automatic redownload on corruption
 
 ## Testing Strategy
 
 ### Unit Tests
-- Test each service in isolation
-- Mock external dependencies
-- Target 80%+ code coverage
+
+- Test each service interface implementation
+- Test data models serialization
+- Test error handling paths
+- Test edge cases and boundary conditions
 
 ### Integration Tests
-- Test complete user flows
-- Test offline scenarios
-- Test model downloads and updates
+
+- Test full translation pipeline
+- Test offline mode functionality
+- Test cache operations
+- Test model download and validation
 
 ### Performance Tests
-- Measure load times
-- Measure processing times
+
+- Measure initial load time
+- Measure cached content retrieval
+- Measure new content processing time
 - Measure memory usage
 
-### Security Tests
-- Test encryption/decryption
-- Test permission handling
-- Test data protection
+### Accessibility Tests
 
-## Next Steps
+- Screen reader compatibility
+- High contrast mode
+- WCAG 2.1 Level AA compliance
 
-1. **Setup Flutter Project**: Initialize Flutter project with recommended structure
-2. **Implement Core Services**: Start with voice recording and STT services
-3. **Build UI Components**: Create basic UI for voice recording and text input
-4. **Implement Caching**: Add local caching for performance
-5. **Add Avatar Rendering**: Implement avatar playback functionality
-6. **Model Management**: Build asset manager for model downloads
-7. **Testing**: Write unit and integration tests
-8. **Performance Optimization**: Optimize for target performance metrics
-9. **Security Implementation**: Implement encryption and security features
-10. **Final Testing and Deployment**: Complete testing and prepare for distribution
+## Error Handling
 
-## Design Decisions and Rationale
+### Error Categories
 
-### Why Local-First Architecture?
+1. **User Errors**: Permission denied, invalid input
+2. **System Errors**: Model not found, storage full
+3. **Network Errors**: Download failed, connectivity lost
+4. **Processing Errors**: STT failed, normalization error
 
-- **Offline Reliability**: NGOs often work in areas with poor connectivity
-- **Privacy**: User data never leaves the device
-- **Cost**: No cloud costs for core functionality
-- **Performance**: No network latency for processing
+### Error Recovery
 
-### Why Flutter?
+- Clear error messages
+- Retry options where applicable
+- Graceful degradation
+- Automatic recovery where possible
 
-- **Cross-platform**: Single codebase for Android and iOS
-- **Performance**: Native performance with Dart
-- **UI Flexibility**: Custom avatar rendering requires flexible UI framework
-- **Ecosystem**: Rich package ecosystem for local AI
+## Future Enhancements
 
-### Why Clean Architecture?
+### Phase 2 Features
 
-- **Testability**: Each layer can be tested independently
-- **Maintainability**: Clear separation of concerns
-- **Extensibility**: Easy to add cloud features later
-- **Scalability**: Supports growing feature set
+- Cloud sync for translation history
+- Multi-user support
+- Advanced analytics
+- Real-time collaboration
 
-### Why Hive for Caching?
+### Architecture for Future
 
-- **Performance**: Fast key-value storage
-- **Lightweight**: Minimal overhead
-- **Flutter-friendly**: First-class Flutter support
-- **Offline**: Works without internet
-
-### Why Whisper for STT?
-
-- **Local Processing**: No API calls needed
-- **Accuracy**: State-of-the-art accuracy
-- **Open Source**: Transparent and auditable
-- **Offline**: Works without internet
+- Clear separation between local and cloud services
+- Interface-based design for easy replacement
+- Configuration flags for feature toggling
+- Modular design for optional features
