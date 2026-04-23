@@ -1,29 +1,36 @@
 /// State classes for recorder Cubit
-part of 'recorder_cubit.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import '../../../domain/models/recorder_models.dart';
 
 /// State for recorder feature
-@freezed
-class RecorderState with _$RecorderState {
+class RecorderState {
+  /// Current recording status
+  final RecordingStatus status;
+
+  /// Result of the recording
+  final RecordingResult? recordingResult;
+
+  /// Manual fallback text input
+  final String? manualText;
+
+  /// Error message for manual text validation
+  final String? manualTextError;
+
+  /// Whether manual fallback is active
+  final bool isManualFallback;
+
+  /// Error message for recording
+  final String? errorMessage;
+
   /// Creates an empty recorder state
-  const factory RecorderState({
-    /// Current recording status
-    @Default(RecordingStatus.idle) RecordingStatus status,
-
-    /// Result of the recording
-    RecordingResult? recordingResult,
-
-    /// Manual fallback text input
-    String? manualText,
-
-    /// Error message for manual text validation
-    String? manualTextError,
-
-    /// Whether manual fallback is active
-    @Default(false) bool isManualFallback,
-
-    /// Error message for recording
-    String? errorMessage,
-  }) = _RecorderState;
+  const RecorderState({
+    this.status = RecordingStatus.idle,
+    this.recordingResult,
+    this.manualText,
+    this.manualTextError,
+    this.isManualFallback = false,
+    this.errorMessage,
+  });
 
   /// Check if the state is valid for output
   bool get isValid {
@@ -41,4 +48,23 @@ class RecorderState with _$RecorderState {
 
   /// Get the current duration
   Duration get duration => recordingResult?.duration ?? Duration.zero;
+
+  /// Copy with method
+  RecorderState copyWith({
+    RecordingStatus? status,
+    RecordingResult? recordingResult,
+    String? manualText,
+    String? manualTextError,
+    bool? isManualFallback,
+    String? errorMessage,
+  }) {
+    return RecorderState(
+      status: status ?? this.status,
+      recordingResult: recordingResult ?? this.recordingResult,
+      manualText: manualText ?? this.manualText,
+      manualTextError: manualTextError ?? this.manualTextError,
+      isManualFallback: isManualFallback ?? this.isManualFallback,
+      errorMessage: errorMessage ?? this.errorMessage,
+    );
+  }
 }

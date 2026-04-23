@@ -1,13 +1,10 @@
 /// Presentation layer Cubit for recorder state management
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:freezed_annotation/freezed_annotation.dart';
 
 import '../../../domain/models/recorder_models.dart';
 import '../../../domain/use_cases/record_audio.dart';
 import '../../../domain/use_cases/validate_recording.dart';
 import '../../../domain/models/recorder_output.dart';
-
-part 'recorder_state.dart';
 
 /// Cubit for managing recorder state
 /// Validates: Requirements 2.1 - UI for record button, waveform, stop button

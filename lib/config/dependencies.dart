@@ -1,5 +1,9 @@
 import 'package:get_it/get_it.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 
+import '../domain/models/cache_entry.dart';
+import '../domain/models/sign_mapping_model.dart';
+import '../domain/models/translation_result.dart';
 import '../application/asset_manager/asset_manager.dart';
 import '../application/asset_manager/model_downloader.dart';
 import '../application/asset_manager/model_manager.dart';
@@ -46,21 +50,24 @@ import '../presentation/bloc/translation/translation_cubit.dart';
 import '../presentation/bloc/voice_recording/voice_recording_cubit.dart';
 
 /// Dependency injection container using GetIt
-/// This provides a centralized way to manage and access dependencies
 final getIt = GetIt.instance;
 
-/// Service locator extension for type-safe dependency retrieval
-extension ServiceLocator on GetIt {
-  /// Get a service instance with type safety
-  T getService<T>() => get<T>();
-  
-  /// Check if a service is registered
-  bool hasService<T>() => isRegistered<T>();
-}
-
 /// Initialize all dependencies
-/// Call this during app startup before running the app
+/// CACHE-FIRST: Opens Hive boxes before registering services
 Future<void> initializeDependencies() async {
+  // HIVE INITIALIZATION: Register adapters
+  // Run: flutter pub run build_runner build --delete-conflicting-outputs
+  Hive.registerAdapter(CacheEntryAdapter());
+  Hive.registerAdapter(TranslationResultAdapter());
+  Hive.registerAdapter(SignMappingModelAdapter());
+  
+  // HIVE INITIALIZATION: Open boxes
+  await Hive.openBox<CacheEntry>('cache');
+  await Hive.openBox<TranslationResult>('translations');
+  await Hive.openBox<SignMappingModel>('sign_mappings');
+  await Hive.openBox('settings');
+  await Hive.openBox('usage_stats');
+  
   // Register services
   registerServices();
   
