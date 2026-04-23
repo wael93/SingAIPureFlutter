@@ -1,0 +1,38 @@
+name: sign_language_mvp
+description: A Flutter-based sign language translation MVP for NGOs.
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.0.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_bloc: ^8.14.0
+  freezed: ^2.4.0
+  hive: ^2.2.3
+  hive_flutter: ^1.1.0
+  path_provider: ^2.1.2
+  record: ^4.5.0
+  flutter_whisper: ^2.0.0
+  tflite_flutter: ^0.10.4
+  http: ^1.2.0
+  connectivity_plus: ^5.0.2
+  flutter_svg: ^2.0.9
+  video_player: ^2.8.0
+  permission_handler: ^11.1.0
+  crypto: ^3.0.3
+  uuid: ^4.3.3
+  logger: ^2.2.0
+  get_it: ^7.6.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: 3.0.0+
+  hive_generator: 2.0.1+
+  build_runner: 2.4.7+
+
+flutter:
+  uses-material-design: true
