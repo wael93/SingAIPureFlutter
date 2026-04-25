@@ -44,6 +44,8 @@ import '../presentation/bloc/asset_manager/asset_manager_cubit.dart';
 import '../presentation/bloc/settings/settings_cubit.dart';
 import '../presentation/bloc/translation/translation_cubit.dart';
 import '../presentation/bloc/voice_recording/voice_recording_cubit.dart';
+import '../features/recorder/presentation/bloc/recorder_cubit.dart';
+import '../features/player/presentation/bloc/avatar_player_cubit.dart';
 
 /// Dependency Injection setup functions
 /// Provides a clean way to register and retrieve dependencies
@@ -276,6 +278,12 @@ void setupBlocs() {
   
   // SettingsCubit
   registerFactory<SettingsCubit>(() => SettingsCubit());
+  
+  // RecorderCubit - MVP SCOPE LOCK: Added for voice recording feature
+  registerFactory<RecorderCubit>(() => RecorderCubit());
+  
+  // AvatarPlayerCubit - MVP SCOPE LOCK: Added for player feature
+  registerFactory<AvatarPlayerCubit>(() => AvatarPlayerCubit());
 }
 
 /// Setup services with cloud implementations (future)

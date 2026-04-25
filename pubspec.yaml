@@ -9,24 +9,24 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  flutter_bloc: ^8.14.0
+  flutter_bloc: ^8.1.0
   freezed_annotation: ^2.4.0
   json_annotation: ^4.8.1
   hive: ^2.2.3
   hive_flutter: ^1.1.0
-  path_provider: ^2.1.2
-  record: ^4.5.0
-  flutter_whisper: ^2.0.0
-  tflite_flutter: ^0.10.4
-  http: ^1.2.0
-  connectivity_plus: ^5.0.2
-  flutter_svg: ^2.0.9
+  path_provider: ^2.1.0
+  record: ^5.0.0
+  # flutter_whisper: ^2.0.0  # MVP SCOPE LOCK: Removed - not available on pub.dev
+  # tflite_flutter: ^0.10.4  # MVP SCOPE LOCK: Removed - local AI out of scope
+  http: ^1.1.0
+  connectivity_plus: ^5.0.0
+  flutter_svg: ^2.0.0
   video_player: ^2.8.0
-  share_plus: ^7.2.1
-  permission_handler: ^11.1.0
+  share_plus: ^7.2.0
+  permission_handler: ^11.0.0
   crypto: ^3.0.3
-  uuid: ^4.3.3
-  logger: ^2.2.0
+  uuid: ^4.0.0
+  logger: ^2.0.0
   get_it: ^7.6.0
 
 dev_dependencies:

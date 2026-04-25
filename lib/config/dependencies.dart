@@ -15,7 +15,6 @@ import '../application/cache/cache_eviction_policy.dart';
 import '../application/cache/cache_manager.dart';
 import '../application/export/export_format.dart';
 import '../application/export/export_result.dart';
-import '../application/export/export_service.dart';
 import '../application/export/share_manager.dart';
 import '../application/normalization/normalization_cache.dart';
 import '../application/normalization/rag_normalizer.dart';
@@ -48,6 +47,10 @@ import '../presentation/bloc/asset_manager/asset_manager_cubit.dart';
 import '../presentation/bloc/settings/settings_cubit.dart';
 import '../presentation/bloc/translation/translation_cubit.dart';
 import '../presentation/bloc/voice_recording/voice_recording_cubit.dart';
+import '../features/recorder/presentation/bloc/recorder_cubit.dart';
+import '../features/player/presentation/bloc/avatar_player_cubit.dart';
+import '../features/player/application/avatar_player_service.dart';
+import '../features/export/application/export_service.dart';
 
 /// Dependency injection container using GetIt
 final getIt = GetIt.instance;
@@ -256,6 +259,12 @@ void registerBlocs() {
   
   // SettingsCubit
   getIt.registerFactory<SettingsCubit>(() => SettingsCubit());
+  
+  // RecorderCubit - MVP SCOPE LOCK: Added for voice recording feature
+  getIt.registerFactory<RecorderCubit>(() => RecorderCubit());
+  
+  // AvatarPlayerCubit - MVP SCOPE LOCK: Added for player feature
+  getIt.registerFactory<AvatarPlayerCubit>(() => AvatarPlayerCubit());
 }
 
 /// Reset the dependency injection container (useful for testing)

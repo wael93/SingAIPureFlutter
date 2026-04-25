@@ -144,15 +144,28 @@ class _HomePageState extends State<HomePage> {
 
   void _handleTranslate() {
     final text = _textController.text.trim();
-    if (text.isEmpty) return;
+    if (text.isEmpty) {
+      // FALLBACK: Show error state
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('النص فارغ')),
+      );
+      return;
+    }
 
-    // FALLBACK: Mock sign URLs for MVP
+    // MVP SCOPE LOCK: Mock sign URLs for MVP with cache-first fallback
     // TODO: Replace with actual sign mapping service
     _currentText = text;
-    _currentSignUrls = [
-      'assets/signs/hello.mp4',
-      'assets/signs/world.mp4',
-    ];
+    
+    // FALLBACK: Check cache first, then fallback to mock
+    final cachedSigns = _getCachedSigns(text);
+    if (cachedSigns != null && cachedSigns.isNotEmpty) {
+      _currentSignUrls = cachedSigns;
+    } else {
+      _currentSignUrls = [
+        'assets/signs/hello.mp4',
+        'assets/signs/world.mp4',
+      ];
+    }
 
     _playerService.playSignSequence(_currentSignUrls);
   }
@@ -162,5 +175,11 @@ class _HomePageState extends State<HomePage> {
       videoUrls: _currentSignUrls,
       inputText: _currentText,
     );
+  }
+
+  // FALLBACK: Simple cache lookup
+  List<String>? _getCachedSigns(String text) {
+    // TODO: Implement actual cache lookup
+    return null;
   }
 }

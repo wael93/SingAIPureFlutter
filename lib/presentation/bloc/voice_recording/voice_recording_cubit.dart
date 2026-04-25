@@ -1,26 +1,19 @@
 // TODO: Implement voice recording cubit
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:freezed_annotation/freezed_annotation.dart';
+
+part 'voice_recording_state.dart';
 
 class VoiceRecordingCubit extends Cubit<VoiceRecordingState> {
-  VoiceRecordingCubit() : super(VoiceRecordingInitial());
+  VoiceRecordingCubit() : super(const VoiceRecordingState.idle());
   
   // Placeholder for voice recording cubit methods
 }
 
-class VoiceRecordingState {}
-
-class VoiceRecordingInitial extends VoiceRecordingState {}
-
-class VoiceRecordingInProgress extends VoiceRecordingState {}
-
-class VoiceRecordingComplete extends VoiceRecordingState {
-  final String audioPath;
-  
-  VoiceRecordingComplete(this.audioPath);
-}
-
-class VoiceRecordingFailure extends VoiceRecordingState {
-  final String message;
-  
-  VoiceRecordingFailure(this.message);
+@freezed
+class VoiceRecordingState with _$VoiceRecordingState {
+  const factory VoiceRecordingState.idle() = _Idle;
+  const factory VoiceRecordingState.recording() = _Recording;
+  const factory VoiceRecordingState.completed({required String audioPath}) = _Completed;
+  const factory VoiceRecordingState.error(String message) = _Error;
 }

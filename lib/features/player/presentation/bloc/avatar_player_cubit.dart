@@ -9,9 +9,14 @@ class AvatarPlayerCubit extends Cubit<AvatarPlayerState> {
   final AvatarPlayerService _playerService;
 
   AvatarPlayerCubit(this._playerService) : super(const AvatarPlayerState.idle()) {
-    _playerService.stateStream.listen((serviceState) {
-      _mapServiceStateToBloc(serviceState);
-    });
+    // FALLBACK: Check if stream is closed before listening
+    if (!_playerService.stateStream.isClosed) {
+      _playerService.stateStream.listen((serviceState) {
+        if (!isClosed) {
+          _mapServiceStateToBloc(serviceState);
+        }
+      });
+    }
   }
 
   void _mapServiceStateToBloc(serviceState) {
